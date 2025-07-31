@@ -7,6 +7,7 @@ const loudnessCanvas = document.getElementById('loudnessCanvas');
 const noteCloud = document.getElementById('noteCloud');
 const bpmMeter = document.getElementById('bpmMeter');
 const dynamicRangeDiv = document.getElementById('dynamicRange');
+const fileNameLabel = document.getElementById('fileName');
 const durationLabel = document.getElementById('durationLabel');
 const resetBtn = document.getElementById('resetBtn');
 const loadingOverlay = document.getElementById('loading');
@@ -36,6 +37,7 @@ resetBtn.addEventListener('click', resetAll);
 
 function handleFile(file) {
   if (!file) return;
+  fileNameLabel.textContent = `File: ${file.name}`;
   loadingOverlay.classList.remove('hidden');
   const reader = new FileReader();
   reader.onload = async e => {
@@ -294,6 +296,7 @@ function resetAll() {
   dynamicRangeDiv.querySelector('.bar').style.width = '0';
   dynamicRangeDiv.querySelector('.label').textContent = '';
   durationLabel.textContent = '';
+  fileNameLabel.textContent = '';
   fileInput.value = '';
   loadingOverlay.classList.add('hidden');
 }
