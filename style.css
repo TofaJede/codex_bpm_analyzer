@@ -1,0 +1,78 @@
+body {
+  background: #0a0a0f;
+  color: #eee;
+  font-family: Arial, Helvetica, sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  margin: 0;
+}
+
+.container {
+  text-align: center;
+  width: 80%;
+  max-width: 900px;
+}
+
+h1 {
+  color: rgb(100, 51, 162);
+  text-shadow: 0 0 10px rgb(100, 51, 162), 0 0 20px rgb(100, 51, 162);
+}
+
+#audioFile {
+  margin: 1rem 0;
+}
+
+#visualizer {
+  width: 100%;
+  height: 200px;
+  background: #111;
+  border: 2px solid rgb(100, 51, 162);
+  box-shadow: 0 0 10px rgb(100, 51, 162);
+}
+
+#results {
+  margin-top: 1rem;
+}
+
+.bar {
+  height: 20px;
+  margin: 4px 0;
+  background: rgba(100,51,162,0.3);
+  box-shadow: 0 0 5px rgb(100, 51, 162);
+  transition: width 0.6s ease;
+}
+
+.bar span {
+  position: relative;
+  top: -22px;
+  font-size: 0.9rem;
+}
+
+.top-key {
+  font-weight: bold;
+  font-size: 1.2rem;
+  text-shadow: 0 0 10px rgb(100, 51, 162), 0 0 20px rgb(100, 51, 162), 0 0 30px rgb(100, 51, 162);
+}
+
+#resetButton {
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  background: rgb(100, 51, 162);
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgb(100, 51, 162);
+  transition: background 0.3s ease;
+}
+
+#resetButton:hover {
+  background: rgb(130, 81, 192);
+}
+
+@media (max-width: 600px) {
+  #visualizer {
+    height: 150px;
+  }
+}
