@@ -9,6 +9,7 @@ const bpmMeter = document.getElementById('bpmMeter');
 const dynamicRangeDiv = document.getElementById('dynamicRange');
 const durationLabel = document.getElementById('durationLabel');
 const resetBtn = document.getElementById('resetBtn');
+const loadingOverlay = document.getElementById('loading');
 const noteNames = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 let waveAnimation;
 
@@ -35,12 +36,14 @@ resetBtn.addEventListener('click', resetAll);
 
 function handleFile(file) {
   if (!file) return;
+  loadingOverlay.classList.remove('hidden');
   const reader = new FileReader();
   reader.onload = async e => {
     const arrayBuffer = e.target.result;
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
     analyzeBuffer(audioBuffer);
+    loadingOverlay.classList.add('hidden');
   };
   reader.readAsArrayBuffer(file);
 }
@@ -219,8 +222,6 @@ function showNotes(notes) {
     span.textContent = name;
     const size = 16 + (val / max) * 40;
     span.style.fontSize = size + 'px';
-    span.style.left = Math.random() * 80 + '%';
-    span.style.top = Math.random() * 80 + '%';
     noteCloud.appendChild(span);
   });
 }
@@ -294,4 +295,5 @@ function resetAll() {
   dynamicRangeDiv.querySelector('.label').textContent = '';
   durationLabel.textContent = '';
   fileInput.value = '';
+  loadingOverlay.classList.add('hidden');
 }
