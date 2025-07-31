@@ -129,6 +129,10 @@ body {
   box-shadow: 0 0 20px var(--accent);
 }
 
+#fileName {
+  margin-top: 10px;
+}
+
 #durationLabel {
   margin-top: 10px;
 }
