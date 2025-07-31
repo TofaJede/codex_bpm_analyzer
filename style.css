@@ -1,78 +1,129 @@
+:root {
+  --accent: rgb(100, 51, 162);
+}
+
 body {
-  background: #0a0a0f;
+  background: #09090d;
   color: #eee;
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  font-family: Arial, sans-serif;
   display: flex;
   justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  margin: 0;
 }
 
-.container {
+#app {
+  width: 90%;
+  max-width: 1000px;
   text-align: center;
-  width: 80%;
-  max-width: 900px;
 }
 
-h1 {
-  color: rgb(100, 51, 162);
-  text-shadow: 0 0 10px rgb(100, 51, 162), 0 0 20px rgb(100, 51, 162);
+.glow {
+  border: 2px dashed var(--accent);
+  border-radius: 10px;
+  box-shadow: 0 0 10px var(--accent);
 }
 
-#audioFile {
-  margin: 1rem 0;
+#dropZone {
+  padding: 30px;
+  margin: 20px 0;
+  cursor: pointer;
 }
 
-#visualizer {
+#dropZone.hover {
+  background: rgba(100, 51, 162, 0.2);
+}
+
+#waveCanvas {
   width: 100%;
   height: 200px;
+}
+
+#panels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: center;
+}
+
+.panel {
   background: #111;
-  border: 2px solid rgb(100, 51, 162);
-  box-shadow: 0 0 10px rgb(100, 51, 162);
-}
-
-#results {
-  margin-top: 1rem;
-}
-
-.bar {
-  height: 20px;
-  margin: 4px 0;
-  background: rgba(100,51,162,0.3);
-  box-shadow: 0 0 5px rgb(100, 51, 162);
-  transition: width 0.6s ease;
-}
-
-.bar span {
+  border: 1px solid var(--accent);
+  box-shadow: 0 0 10px rgba(100, 51, 162, 0.5);
   position: relative;
-  top: -22px;
-  font-size: 0.9rem;
+  flex: 1 1 300px;
+  padding: 10px;
+  min-height: 150px;
 }
 
-.top-key {
-  font-weight: bold;
-  font-size: 1.2rem;
-  text-shadow: 0 0 10px rgb(100, 51, 162), 0 0 20px rgb(100, 51, 162), 0 0 30px rgb(100, 51, 162);
+#bpmMeter {
+  font-size: 40px;
+  line-height: 150px;
+  animation: none;
 }
 
-#resetButton {
-  margin-top: 1rem;
-  padding: 0.5rem 1rem;
-  background: rgb(100, 51, 162);
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+#noteCloud {
+  overflow: hidden;
+}
+
+#noteCloud span {
+  position: absolute;
+  color: var(--accent);
+  text-shadow: 0 0 10px var(--accent);
+}
+
+#eqCanvas, #keyCanvas, #loudnessCanvas {
+  width: 100%;
+  height: 150px;
+}
+
+#dynamicRange {
+  height: 100px;
+}
+
+#dynamicRange .bar {
+  position: absolute;
+  top: 50%;
+  height: 4px;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+}
+
+#dynamicRange .marker {
+  position: absolute;
+  top: calc(50% - 6px);
+  width: 4px;
+  height: 16px;
+  background: #fff;
+}
+
+#dynamicRange .label {
+  position: absolute;
+  top: 60%;
+  width: 100%;
+  font-size: 12px;
+}
+
+#resetBtn {
+  background: var(--accent);
   border: none;
+  padding: 10px 20px;
+  margin: 20px auto;
   color: #fff;
+  border-radius: 5px;
+  box-shadow: 0 0 10px var(--accent);
   cursor: pointer;
-  box-shadow: 0 0 10px rgb(100, 51, 162);
-  transition: background 0.3s ease;
 }
 
-#resetButton:hover {
-  background: rgb(130, 81, 192);
+#resetBtn:hover {
+  box-shadow: 0 0 20px var(--accent);
 }
 
-@media (max-width: 600px) {
-  #visualizer {
-    height: 150px;
-  }
+#durationLabel {
+  margin-top: 10px;
 }

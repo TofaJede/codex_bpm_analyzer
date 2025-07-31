@@ -1,181 +1,297 @@
-const fileInput = document.getElementById('audioFile');
-const audio = document.getElementById('audio');
-const resultsDiv = document.getElementById('results');
-const resetButton = document.getElementById('resetButton');
-const canvas = document.getElementById('visualizer');
-const ctx = canvas.getContext('2d');
-
-let audioCtx; let source; let analyser; let animationId;
-let pitchHistogram = new Array(12).fill(0);
-
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const waveCanvas = document.getElementById('waveCanvas');
+const keyCanvas = document.getElementById('keyCanvas');
+const eqCanvas = document.getElementById('eqCanvas');
+const loudnessCanvas = document.getElementById('loudnessCanvas');
+const noteCloud = document.getElementById('noteCloud');
+const bpmMeter = document.getElementById('bpmMeter');
+const dynamicRangeDiv = document.getElementById('dynamicRange');
+const durationLabel = document.getElementById('durationLabel');
+const resetBtn = document.getElementById('resetBtn');
 const noteNames = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-const majorProfile = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
-const minorProfile = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
+let waveAnimation;
 
-fileInput.addEventListener('change', handleFiles);
-audio.addEventListener('play', startVisualizer);
-audio.addEventListener('pause', stopVisualizer);
-resetButton.addEventListener('click', resetAll);
+// Drag & Drop
+['dragenter','dragover'].forEach(event => {
+  dropZone.addEventListener(event, e => {
+    e.preventDefault();
+    dropZone.classList.add('hover');
+  });
+});
+['dragleave','drop'].forEach(event => {
+  dropZone.addEventListener(event, e => {
+    e.preventDefault();
+    dropZone.classList.remove('hover');
+  });
+});
+dropZone.addEventListener('drop', e => {
+  const file = e.dataTransfer.files[0];
+  handleFile(file);
+});
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+resetBtn.addEventListener('click', resetAll);
 
-function handleFiles() {
-  const file = fileInput.files[0];
+function handleFile(file) {
   if (!file) return;
-  const url = URL.createObjectURL(file);
-  audio.src = url;
-  analyzeKey(file);
-}
-
-function analyzeKey(file) {
   const reader = new FileReader();
-  reader.onload = async (e) => {
+  reader.onload = async e => {
     const arrayBuffer = e.target.result;
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-    pitchHistogram = computePitchHistogram(audioBuffer);
-    const keyScores = detectKeys(pitchHistogram);
-    displayResults(keyScores);
+    analyzeBuffer(audioBuffer);
   };
   reader.readAsArrayBuffer(file);
 }
 
-function computePitchHistogram(audioBuffer) {
-  const data = audioBuffer.getChannelData(0);
-  const sampleRate = audioBuffer.sampleRate;
-  const step = 2048;
-  const hist = new Array(12).fill(0);
-  for (let i = 0; i < data.length - step; i += step) {
-    const slice = data.slice(i, i + step);
-    const freq = autoCorrelate(slice, sampleRate);
-    if (freq) {
-      const midi = 69 + 12 * Math.log2(freq / 440);
-      const pitchClass = ((Math.round(midi) % 12) + 12) % 12;
-      hist[pitchClass]++;
-    }
-  }
-  return hist;
+function analyzeBuffer(buffer) {
+  const envelope = computeLoudness(buffer); // also used for BPM
+  const bpm = estimateBPM(envelope, buffer.sampleRate, 1024);
+  const dynamic = computeDynamicRange(buffer);
+  const freqData = analyzeFrequency(buffer);
+  drawWaveform(envelope);
+  drawKeyChart(freqData.keyDist);
+  showBPM(bpm);
+  showNotes(freqData.dominantNotes);
+  drawEQ(freqData.bandEnergy);
+  showDynamicRange(dynamic);
+  drawLoudness(envelope);
+  durationLabel.textContent = `Analyzed: ${formatTime(buffer.duration)}`;
 }
 
-function autoCorrelate(buf, sampleRate) {
-  const SIZE = buf.length;
-  const MAX_SAMPLES = Math.floor(SIZE / 2);
-  let bestOffset = -1;
-  let bestCorrelation = 0;
-  let rms = 0;
-  for (let i = 0; i < SIZE; i++) {
-    const val = buf[i];
-    rms += val * val;
-  }
-  rms = Math.sqrt(rms / SIZE);
-  if (rms < 0.01) return null;
-
-  let lastCorrelation = 1;
-  for (let offset = 0; offset < MAX_SAMPLES; offset++) {
-    let correlation = 0;
-    for (let i = 0; i < MAX_SAMPLES; i++) {
-      correlation += Math.abs((buf[i]) - (buf[i + offset]));
+function computeLoudness(buffer) {
+  const data = buffer.getChannelData(0);
+  const size = 1024;
+  const loud = [];
+  for (let i = 0; i < data.length; i += size) {
+    let sum = 0;
+    for (let j = 0; j < size && i + j < data.length; j++) {
+      const s = data[i + j];
+      sum += s * s;
     }
-    correlation = 1 - (correlation / MAX_SAMPLES);
-    if (correlation > 0.9 && correlation > lastCorrelation) {
-      bestCorrelation = correlation;
-      bestOffset = offset;
-    } else if (correlation < lastCorrelation) {
-      if (bestCorrelation > 0.01) {
-        const freq = sampleRate / bestOffset;
-        return freq;
+    loud.push(Math.sqrt(sum / size));
+  }
+  return loud;
+}
+
+function estimateBPM(envelope, sampleRate, step) {
+  const rate = sampleRate / step;
+  const n = envelope.length;
+  const ac = new Array(n).fill(0);
+  for (let lag = 1; lag < n; lag++) {
+    let sum = 0;
+    for (let i = 0; i < n - lag; i++) {
+      sum += envelope[i] * envelope[i + lag];
+    }
+    ac[lag] = sum;
+  }
+  let bestLag = 0, bestVal = 0;
+  const minBPM = 60, maxBPM = 180;
+  const minLag = Math.round(rate * 60 / maxBPM);
+  const maxLag = Math.round(rate * 60 / minBPM);
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    if (ac[lag] > bestVal) {
+      bestVal = ac[lag];
+      bestLag = lag;
+    }
+  }
+  return Math.round(60 * rate / bestLag);
+}
+
+function computeDynamicRange(buffer) {
+  const data = buffer.getChannelData(0);
+  let min = 1, max = -1;
+  for (let i = 0; i < data.length; i++) {
+    const v = data[i];
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  return { min, max, range: max - min };
+}
+
+function analyzeFrequency(buffer) {
+  const data = buffer.getChannelData(0);
+  const sampleRate = buffer.sampleRate;
+  const size = 2048;
+  const bins = new Array(12).fill(0);
+  const noteStrength = {};
+  const band = { low: 0, mid: 0, high: 0 };
+  for (let i = 0; i < data.length - size; i += size) {
+    const slice = data.slice(i, i + size);
+    const spectrum = dft(slice);
+    for (let k = 0; k < spectrum.length; k++) {
+      const freq = k * sampleRate / size;
+      const mag = spectrum[k];
+      if (freq < 250) band.low += mag;
+      else if (freq < 4000) band.mid += mag;
+      else band.high += mag;
+      if (freq > 27 && freq < 4200) {
+        const midi = Math.round(69 + 12 * Math.log2(freq / 440));
+        const pc = ((midi % 12) + 12) % 12;
+        bins[pc] += mag;
+        const name = noteFromMidi(midi);
+        noteStrength[name] = (noteStrength[name] || 0) + mag;
       }
     }
-    lastCorrelation = correlation;
   }
-  if (bestCorrelation > 0.01) {
-    return sampleRate / bestOffset;
-  }
-  return null;
+  const total = bins.reduce((a, b) => a + b, 0) || 1;
+  const keyDist = bins.map(v => v / total * 100);
+  const dominantNotes = Object.entries(noteStrength)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8);
+  const bandTotal = band.low + band.mid + band.high || 1;
+  band.low /= bandTotal;
+  band.mid /= bandTotal;
+  band.high /= bandTotal;
+  return { keyDist, dominantNotes, bandEnergy: band };
 }
 
-function detectKeys(hist) {
-  const scores = {};
-  const sum = hist.reduce((a, b) => a + b, 0) || 1;
-  const norm = hist.map(v => v / sum);
+function dft(samples) {
+  const N = samples.length;
+  const result = new Array(N / 2).fill(0);
+  for (let k = 0; k < N / 2; k++) {
+    let re = 0, im = 0;
+    for (let n = 0; n < N; n++) {
+      const angle = (2 * Math.PI * k * n) / N;
+      re += samples[n] * Math.cos(angle);
+      im -= samples[n] * Math.sin(angle);
+    }
+    result[k] = Math.sqrt(re * re + im * im);
+  }
+  return result;
+}
+
+function noteFromMidi(midi) {
+  const name = noteNames[(midi % 12 + 12) % 12];
+  const octave = Math.floor(midi / 12) - 1;
+  return `${name}${octave}`;
+}
+
+function drawWaveform(loud) {
+  const ctx = waveCanvas.getContext('2d');
+  const w = waveCanvas.width = waveCanvas.offsetWidth;
+  const h = waveCanvas.height = waveCanvas.offsetHeight;
+  let idx = 0;
+  if (waveAnimation) cancelAnimationFrame(waveAnimation);
+  function animate() {
+    ctx.clearRect(0, 0, w, h);
+    const radius = Math.min(w, h) / 4 + loud[idx % loud.length] * h / 4;
+    ctx.beginPath();
+    ctx.arc(w / 2, h / 2, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgb(100,51,162)';
+    ctx.lineWidth = 3;
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = 'rgb(100,51,162)';
+    ctx.stroke();
+    idx++;
+    waveAnimation = requestAnimationFrame(animate);
+  }
+  animate();
+}
+
+function drawKeyChart(dist) {
+  const ctx = keyCanvas.getContext('2d');
+  const w = keyCanvas.width = keyCanvas.offsetWidth;
+  const h = keyCanvas.height = keyCanvas.offsetHeight;
+  const barH = h / 12;
+  ctx.clearRect(0, 0, w, h);
   for (let i = 0; i < 12; i++) {
-    let majorScore = 0;
-    let minorScore = 0;
-    for (let j = 0; j < 12; j++) {
-      majorScore += norm[j] * majorProfile[(12 + j - i) % 12];
-      minorScore += norm[j] * minorProfile[(12 + j - i) % 12];
-    }
-    scores[`${noteNames[i]} Major`] = majorScore;
-    scores[`${noteNames[i]} Minor`] = minorScore;
+    const val = dist[i];
+    ctx.fillStyle = 'rgba(100,51,162,0.7)';
+    ctx.fillRect(0, i * barH, w * val / 100, barH - 2);
+    ctx.fillStyle = '#eee';
+    ctx.fillText(`${noteNames[i]} ${val.toFixed(1)}%`, 5, i * barH + barH / 2 + 4);
   }
-  const total = Object.values(scores).reduce((a, b) => a + b, 0) || 1;
-  for (const key in scores) {
-    scores[key] = (scores[key] / total) * 100;
-  }
-  return scores;
 }
 
-function displayResults(scores) {
-  resultsDiv.innerHTML = '';
-  const entries = Object.entries(scores).sort((a, b) => b[1] - a[1]);
-  const topKey = entries[0][0];
-  entries.forEach(([key, val]) => {
-    const bar = document.createElement('div');
-    bar.className = 'bar';
-    bar.style.width = val.toFixed(2) + '%';
-    const label = document.createElement('span');
-    label.textContent = `${key}: ${val.toFixed(2)}%`;
-    if (key === topKey) {
-      label.classList.add('top-key');
-      bar.style.background = 'rgba(100,51,162,0.8)';
-    }
-    bar.appendChild(label);
-    resultsDiv.appendChild(bar);
+function showBPM(bpm) {
+  bpmMeter.textContent = bpm + ' BPM';
+  bpmMeter.style.animation = 'pulse 1s infinite';
+}
+
+function showNotes(notes) {
+  noteCloud.innerHTML = '';
+  if (!notes.length) return;
+  const max = notes[0][1];
+  notes.forEach(([name, val]) => {
+    const span = document.createElement('span');
+    span.textContent = name;
+    const size = 16 + (val / max) * 40;
+    span.style.fontSize = size + 'px';
+    span.style.left = Math.random() * 80 + '%';
+    span.style.top = Math.random() * 80 + '%';
+    noteCloud.appendChild(span);
   });
 }
 
-function startVisualizer() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  if (source) source.disconnect();
-  source = audioCtx.createMediaElementSource(audio);
-  analyser = audioCtx.createAnalyser();
-  analyser.fftSize = 2048;
-  source.connect(analyser);
-  analyser.connect(audioCtx.destination);
-  draw();
-}
-
-function draw() {
-  const width = canvas.width = canvas.offsetWidth;
-  const height = canvas.height = canvas.offsetHeight;
-  const bufferLength = analyser.frequencyBinCount;
-  const dataArray = new Uint8Array(bufferLength);
-  animationId = requestAnimationFrame(draw);
-  analyser.getByteFrequencyData(dataArray);
-  ctx.clearRect(0, 0, width, height);
-  let x = 0;
-  const barWidth = (width / bufferLength) * 2.5;
-  for (let i = 0; i < bufferLength; i++) {
-    const barHeight = dataArray[i] / 255 * height;
-    ctx.fillStyle = `rgba(100,51,162,${barHeight / height})`;
-    ctx.fillRect(x, height - barHeight, barWidth, barHeight);
-    x += barWidth + 1;
+function drawEQ(band) {
+  const ctx = eqCanvas.getContext('2d');
+  const w = eqCanvas.width = eqCanvas.offsetWidth;
+  const h = eqCanvas.height = eqCanvas.offsetHeight;
+  const vals = [band.low, band.mid, band.high];
+  const labels = ['Low', 'Mid', 'High'];
+  const barW = w / 3 - 20;
+  ctx.clearRect(0, 0, w, h);
+  for (let i = 0; i < 3; i++) {
+    const val = vals[i];
+    const x = i * (barW + 20) + 20;
+    const barH = val * h;
+    ctx.fillStyle = 'rgba(100,51,162,0.7)';
+    ctx.fillRect(x, h - barH, barW, barH);
+    ctx.fillStyle = '#eee';
+    ctx.fillText(labels[i], x, h - 5);
   }
 }
 
-function stopVisualizer() {
-  cancelAnimationFrame(animationId);
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  if (source) source.disconnect();
+function showDynamicRange(dynamic) {
+  const bar = dynamicRangeDiv.querySelector('.bar');
+  const minMarker = dynamicRangeDiv.querySelector('.marker.min');
+  const maxMarker = dynamicRangeDiv.querySelector('.marker.max');
+  const label = dynamicRangeDiv.querySelector('.label');
+  const minPos = ((dynamic.min + 1) / 2) * 100;
+  const maxPos = ((dynamic.max + 1) / 2) * 100;
+  bar.style.left = minPos + '%';
+  bar.style.width = (maxPos - minPos) + '%';
+  minMarker.style.left = minPos + '%';
+  maxMarker.style.left = maxPos + '%';
+  label.textContent = `${dynamic.min.toFixed(2)} / ${dynamic.max.toFixed(2)}`;
+}
+
+function drawLoudness(loud) {
+  const ctx = loudnessCanvas.getContext('2d');
+  const w = loudnessCanvas.width = loudnessCanvas.offsetWidth;
+  const h = loudnessCanvas.height = loudnessCanvas.offsetHeight;
+  ctx.clearRect(0, 0, w, h);
+  ctx.beginPath();
+  for (let i = 0; i < loud.length; i++) {
+    const x = i / (loud.length - 1) * w;
+    const y = h - loud[i] * h;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = 'rgb(100,51,162)';
+  ctx.shadowBlur = 10;
+  ctx.shadowColor = 'rgb(100,51,162)';
+  ctx.stroke();
+}
+
+function formatTime(sec) {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
 }
 
 function resetAll() {
-  stopVisualizer();
-  if (audio) {
-    audio.pause();
-    audio.currentTime = 0;
-    audio.removeAttribute('src');
-    audio.load();
-  }
+  if (waveAnimation) cancelAnimationFrame(waveAnimation);
+  [waveCanvas, keyCanvas, eqCanvas, loudnessCanvas].forEach(c => {
+    const ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, c.width, c.height);
+  });
+  bpmMeter.textContent = '';
+  bpmMeter.style.animation = 'none';
+  noteCloud.innerHTML = '';
+  dynamicRangeDiv.querySelector('.bar').style.width = '0';
+  dynamicRangeDiv.querySelector('.label').textContent = '';
+  durationLabel.textContent = '';
   fileInput.value = '';
-  resultsDiv.innerHTML = '';
-  pitchHistogram = new Array(12).fill(0);
 }

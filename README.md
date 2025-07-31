@@ -1,12 +1,16 @@
-# Neon Key Detector
+# Neon Audio Lab
 
-A vanilla JavaScript web application that analyzes an uploaded audio file and estimates the distribution of musical keys throughout the track. It visualizes key percentages with a glowing bar chart and an animated neon waveform synced to playback.
+A vanilla JavaScript audio analysis dashboard that works entirely in the browser. Drop an audio file to inspect musical keys, BPM, loudness and more. All graphics are rendered with the Canvas API and styled with a neon dark theme.
 
 ## Features
-- Upload audio files (`.mp3`, `.wav`, etc.).
-- Detects percentage of each major and minor key using the Web Audio API.
-- Highlights the most prominent key.
-- Animated canvas visualizer with a purple neon theme.
-- Reset button clears results and allows a new upload.
+- Drag & drop audio upload
+- Key distribution bar chart
+- Dominant note cloud
+- Estimated BPM meter
+- Dynamic range meter
+- Loudness over time graph
+- Frequency band energy (low/mid/high)
+- Animated waveform visualization
+- Reset button clears all results
 
 Open `index.html` in a modern browser to use the app.
